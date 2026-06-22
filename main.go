@@ -39,7 +39,6 @@ func main() {
 		wg.Add(1)
 
 		go func() {
-			fmt.Println("YUS")
 			defer wg.Done()
 
 			for url := range channel {
@@ -54,7 +53,7 @@ func main() {
 				for _, doc := range feed.Items {
 					fmt.Println(doc.Title)
 
-					// check the repo for the same doc.
+					// check the repo for the same doc by guid.
 					// if the doc already exists in the db, skip
 					// if not, put it in there, with the UNANALYZED tag
 				}
