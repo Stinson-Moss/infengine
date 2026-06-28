@@ -2,39 +2,37 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"github.com/mmcdole/gofeed"
+	"github.com/Stinson-Moss/infengine/items"
+	"github.com/Stinson-Moss/infengine/db/postgres"
 )
 
 func main() {
 	if len(os.Args) == 1 {
-		fmt.Println("Please provide a file path to a .txt list of RSS feed urls")
+		log.Fatalln("Please provide a file path to a .txt list of RSS feed urls")
 		return
 	}
 
 	path := os.Args[1]
 	fileData, err := os.ReadFile(path)
 	if err != nil {
-		fmt.Println("Error reading the file ", path)
-		os.Exit(1)
+		log.Fatalln("Error reading the file ", path)
 	}
 
-	numWorkers := 10
-	if len(os.Args) == 3 {
-		numWorkers, err = strconv.Atoi(os.Args[2])
-		if err != nil {
-			fmt.Println("Invalid argument for number of workers. Please input a valid integer (x > 0)")
-			os.Exit(1)
-		}
+	numWorkers, err := strconv.Atoi(os.Getenv("WORKER_COUNT"))
+	if err != nil {
+		log.Fatalln("WORKER_COUNT environment variable has not been set correctly. Please put in an integer value")
 	}
 
-	content := string(fileData)
-	var channel chan string = make(chan string)
-	wg := sync.WaitGroup{}
+	db, err := postgres.CreateDB()
 	
+	channel := make(chan string)
+	wg := sync.WaitGroup{}
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
 
@@ -50,8 +48,15 @@ func main() {
 					continue
 				}
 
-				for _, doc := range feed.Items {
-					fmt.Println(doc.Title)
+				for _, rawDoc := range feed.Items {
+					doc, err := items.FromFeed(rawDoc)
+					if err != nil {
+						fmt.Println("Unable to process feed", rawDoc.Title)
+						continue
+					}
+
+					existingDoc, err := db
+					
 
 					// check the repo for the same doc by guid.
 					// if the doc already exists in the db, skip
@@ -61,7 +66,7 @@ func main() {
 		}()
 	}
 
-	urls := strings.Split(content, "\n")
+	urls := strings.Split(string(fileData), "\n")
 	for _, url := range urls {
 		channel <- url
 	}
