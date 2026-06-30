@@ -8,6 +8,7 @@ import (
 )
 
 type Document struct {
+	Id int64
 	Guid string
 	Title string
 	
@@ -18,17 +19,6 @@ type Document struct {
 	Tags []string
 	Links []string
 	Created *time.Time
-}
-
-type DocumentsRepository interface {
-
-	// CRUD
-	GetDocumentById(guid string) (*Document, error)
-	CreateDocument(ref *Document) error
-	UpdateDocument(guid string, doc *Document) error
-	DeleteDocument(guid string) error
-
-	// 
 }
 
 func getNames(list []*gofeed.Person) []string {
@@ -50,7 +40,8 @@ func FromFeed(feed *gofeed.Item) (*Document, error) {
 	}
 
 	doc := Document{
-		GUID: feed.GUID,
+		Id: -1,
+		Guid: feed.GUID,
 		Title: feed.Title,
 
 		Authors: getNames(feed.Authors),

@@ -1,0 +1,16 @@
+DROP INDEX IF EXISTS idx_guid;
+DROP INDEX IF EXISTS idx_author;
+DROP INDEX IF EXISTS idx_tag;
+DROP INDEX IF EXISTS idx_link;
+
+DROP INDEX IF EXISTS idx_doc_authors_author_id;
+DROP INDEX IF EXISTS idx_doc_tags_tag_id;
+
+DROP TABLE IF EXISTS Document_Authors;
+DROP TABLE IF EXISTS Document_Tags;
+DROP TABLE IF EXISTS Document_Links;
+
+DROP TABLE IF EXISTS Documents;
+DROP TABLE IF EXISTS Authors;
+DROP TABLE IF EXISTS Tags;
+DROP TABLE IF EXISTS Links;
