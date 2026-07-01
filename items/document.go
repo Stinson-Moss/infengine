@@ -8,7 +8,6 @@ import (
 )
 
 type Document struct {
-	Id int64
 	Guid string
 	Title string
 	
@@ -21,7 +20,7 @@ type Document struct {
 	Created *time.Time
 }
 
-func getNames(list []*gofeed.Person) []string {
+func GetNames(list []*gofeed.Person) []string {
 	names := []string{}
 	for _, person := range list {
 		if person == nil {
@@ -34,28 +33,18 @@ func getNames(list []*gofeed.Person) []string {
 	return names
 }
 
-func FromFeed(feed *gofeed.Item) (*Document, error) {
+func GetCreationTime(feed *gofeed.Item) (*time.Time, error) {
 	if feed == nil {
-		return nil, fmt.Errorf("Feed is nil")
+		return nil, fmt.Errorf("feed is nil")
 	}
 
-	doc := Document{
-		Id: -1,
-		Guid: feed.GUID,
-		Title: feed.Title,
-
-		Authors: getNames(feed.Authors),
-		Description: feed.Description,
-		Content: feed.Content,
-		
-		Tags: feed.Categories,
-		Links: feed.Links,
-		Created: feed.PublishedParsed,
+	if feed.UpdatedParsed != nil {
+		return feed.UpdatedParsed, nil
 	}
 
-	if doc.Created == nil {
-		doc.Created = feed.UpdatedParsed
+	if feed.PublishedParsed != nil {
+		return feed.PublishedParsed, nil
 	}
 
-	return &doc, nil
-} 
+	return nil, fmt.Errorf("No valid parsed date")
+}

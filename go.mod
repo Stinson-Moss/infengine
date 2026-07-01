@@ -5,6 +5,7 @@ go 1.26.4
 require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/mmcdole/gofeed v1.3.0
+	golang.org/x/text v0.38.0
 )
 
 require (
@@ -19,5 +20,4 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
 )

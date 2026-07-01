@@ -1,8 +1,8 @@
 CREATE TABLE Documents (
     Id BIGSERIAL PRIMARY KEY,
-    Guid VARCHAR(40) NOT NULL,
+    Guid TEXT NOT NULL,
     
-    Title VARCHAR(50) NOT NULL,
+    Title TEXT NOT NULL,
     Description TEXT NOT NULL,
     Content TEXT NOT NULL,
 

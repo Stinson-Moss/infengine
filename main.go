@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Stinson-Moss/infengine/db/postgres/db"
-	"github.com/Stinson-Moss/infengine/items"
+	"github.com/Stinson-Moss/infengine/obsidian"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mmcdole/gofeed"
@@ -31,6 +31,11 @@ func main() {
 	numWorkers, err := strconv.Atoi(os.Getenv("WORKER_COUNT"))
 	if err != nil {
 		log.Fatalln("WORKER_COUNT environment variable has not been set correctly. Please put in an integer value")
+	}
+
+	vaultPath, ok := os.LookupEnv("VAULT_PATH")
+	if !ok {
+		log.Fatalln("VAULT_PATH does not exist")
 	}
 
 	pgUrl, ok := os.LookupEnv("POSTGRES_URL")
@@ -54,12 +59,14 @@ func main() {
 		log.Fatalf("Unable to instantiate connection pool: %v", err)
 	}
 
-	timeoutCtx, _ := context.WithTimeout(ctx, time.Minute * 1)
+	timeoutCtx, cancelTimeout := context.WithTimeout(ctx, time.Second * 30)
 	if err := pool.Ping(timeoutCtx); err != nil {
 		log.Fatalf("Error pinging connection: %v", err)
 	}
+	cancelTimeout()
 
-	db := db.New(pool)
+	queries := db.New(pool)
+	newDocuments := []db.Document{}
 	
 	channel := make(chan string)
 	wg := sync.WaitGroup{}
@@ -70,38 +77,91 @@ func main() {
 			defer wg.Done()
 
 			for url := range channel {
+				if len(url) == 0 {
+					continue
+				}
+
 				fetcher := gofeed.NewParser()
 				feed, err := fetcher.ParseURL(url)
 				if err != nil {
 					line := fmt.Sprintf("Error parsing url: %v", err)
-					fmt.Println(line)
+					
+					fmt.Println(line, "\nUrl: ", url)
 					continue
 				}
 
 				for _, rawDoc := range feed.Items {
-					doc, err := items.FromFeed(rawDoc)
-					if err != nil {
-						fmt.Println("Unable to process feed", rawDoc.Title)
-						continue
-					}
 
-					ctx, _ := context.WithTimeout(context.Background(), 5 * time.Minute)
-					_, err := db.GetDocumentByGuid(ctx, doc.Guid)
+					ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+					defer cancel()
+					_, err := queries.GetDocumentByGuid(ctx, rawDoc.GUID)
 					if err != nil && err != pgx.ErrNoRows {
 						fmt.Println("Error finding existing document")
+						cancel()
 						continue
 					}
 
 					if err == pgx.ErrNoRows {
-						db
-						db.CreateDocument()
+						ctx, cancelTimeoutTx := context.WithTimeout(context.Background(), time.Minute)
+						defer cancelTimeoutTx()
+
+						transaction, _ := pool.Begin(ctx)
+						defer transaction.Rollback(ctx)
+
+						qtx := queries.WithTx(transaction)
+						
+						document, err := qtx.CreateDocument(ctx, db.CreateDocumentParams{
+							Guid: rawDoc.GUID,
+							Title: rawDoc.Title,
+							Description: rawDoc.Description,
+							Content: rawDoc.Content,
+						})
+						
+						if err != nil {
+							fmt.Printf("Error creating new document, %v\n", err)
+						} else {
+							newDocuments = append(newDocuments, document)
+						}
+
+						for _, author := range rawDoc.Authors {
+							if author == nil || len(author.Name) == 0 {
+								continue
+							}
+
+							if _, err := qtx.GetOrCreateAuthor(ctx, author.Name); err != nil {
+								fmt.Printf("Error creating/getting author %s: %v\n", author.Name, err)
+							}
+						}
+
+						for _, tag := range rawDoc.Categories {
+							if len(tag) == 0 {
+								continue
+							}
+
+							if _, err := qtx.GetOrCreateTag(ctx, tag); err != nil {
+								fmt.Printf("Error creating/getting tag %s: %v\n", tag, err)
+							}
+						}
+
+						for _, link := range rawDoc.Links {
+							if len(link) == 0 {
+								continue
+							}
+
+							if _, err := qtx.GetOrCreateLink(ctx, link); err != nil {
+								fmt.Printf("Error creating/getting link %s: %v\n", link, err)
+							}
+						}
+
+
+						commitCtx, cancelCommit := context.WithTimeout(context.Background(), time.Minute)
+						defer cancelCommit()
+						transaction.Commit(commitCtx)
+
+						if err := obsidian.ExportSourceDocument(document, vaultPath); err != nil {
+							fmt.Printf("%v\n", err)
+						}
 					}
-
-					if existingDoc != nil
-
-					// check the repo for the same doc by guid.
-					// if the doc already exists in the db, skip
-					// if not, put it in there, with the UNANALYZED tag
 				}
 			}
 		}()
@@ -117,10 +177,10 @@ func main() {
 	wg.Wait()
 
 	fmt.Println("Updated database with RSS feeds")
-	// fetch data
-	// parse data and get tags and relevant headlines
-	// form documents from data
-	// put documents in database, tag as unanalyzed
+
+	for _, doc := range newDocuments {
+		fmt.Println(doc.Title)
+	}
 
 	// run python script to bring in AI to analyze the data
 }
