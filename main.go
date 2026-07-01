@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"path/filepath"
 
 	"github.com/Stinson-Moss/infengine/db/postgres/db"
 	"github.com/Stinson-Moss/infengine/obsidian"
@@ -36,6 +37,11 @@ func main() {
 	vaultPath, ok := os.LookupEnv("VAULT_PATH")
 	if !ok {
 		log.Fatalln("VAULT_PATH does not exist")
+	}
+	vaultPath = filepath.Clean(vaultPath)
+	vaultPath, err = filepath.Abs(vaultPath)
+	if err != nil {
+		log.Fatalln("VaultPath must be an absolute path")
 	}
 
 	pgUrl, ok := os.LookupEnv("POSTGRES_URL")
@@ -157,8 +163,8 @@ func main() {
 						commitCtx, cancelCommit := context.WithTimeout(context.Background(), time.Minute)
 						defer cancelCommit()
 						transaction.Commit(commitCtx)
-
-						if err := obsidian.ExportSourceDocument(document, vaultPath); err != nil {
+		
+						if err := obsidian.ExportSourceDocument(document, rawDoc.Categories, vaultPath); err != nil {
 							fmt.Printf("%v\n", err)
 						}
 					}
